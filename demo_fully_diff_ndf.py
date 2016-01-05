@@ -12,11 +12,11 @@ def init_weights(shape):
     return tf.Variable(tf.random_normal(shape, stddev=0.01))
 
 
-def init_prob_weights(shape, minval=-2, maxval=2):
+def init_prob_weights(shape, minval=-5, maxval=5):
     return tf.Variable(tf.random_uniform(shape, minval, maxval))
 
 
-def model(X, w, w2, w3, w4, w_o, w_l, p_keep_conv, p_keep_hidden):
+def model(X, w, w2, w3, w4, w_d, w_l, p_keep_conv, p_keep_hidden):
     l1a = tf.nn.relu(tf.nn.conv2d(X, w, [1, 1, 1, 1], 'SAME'))
     l1 = tf.nn.max_pool(l1a, ksize=[1, 2, 2, 1],
                         strides=[1, 2, 2, 1], padding='SAME')
@@ -37,7 +37,7 @@ def model(X, w, w2, w3, w4, w_o, w_l, p_keep_conv, p_keep_hidden):
     l4 = tf.nn.relu(tf.matmul(l3, w4))
     l4 = tf.nn.dropout(l4, p_keep_hidden)
 
-    decision_p = tf.nn.sigmoid(tf.matmul(l4, w_o))
+    decision_p = tf.nn.sigmoid(tf.matmul(l4, w_d))
     leaf_p = tf.nn.softmax(w_l)
 
     return decision_p, leaf_p
@@ -57,14 +57,14 @@ w2 = init_weights([3, 3, 32, 64])
 w3 = init_weights([3, 3, 64, 128])
 w4 = init_weights([128 * 4 * 4, 625])
 
-w_o = init_weights([625, N_LEAF])
-w_l = init_prob_weights([N_LEAF, N_LABEL], 1, 10)
+w_d = init_prob_weights([625, N_LEAF], -1, 1)
+w_l = init_prob_weights([N_LEAF, N_LABEL], -2, 2)
 
 p_keep_conv = tf.placeholder("float")
 p_keep_hidden = tf.placeholder("float")
 
 # With the probability decision_p, route a sample to the right branch
-decision_p, leaf_p = model(X, w, w2, w3, w4, w_o, w_l, p_keep_conv, p_keep_hidden)
+decision_p, leaf_p = model(X, w, w2, w3, w4, w_d, w_l, p_keep_conv, p_keep_hidden)
 
 decision_p_comp = tf.sub(tf.ones_like(decision_p), decision_p)
 
@@ -81,7 +81,7 @@ out_repeat = N_BATCH
 batch_complement_indices = np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat] * out_repeat).reshape(N_BATCH, N_LEAF)
 mu_ = tf.gather(flat_decision_p, tf.add(batch_0_indices, batch_complement_indices))
 
-for d in xrange(1, DEPTH):
+for d in xrange(1, DEPTH + 1):
     indices = tf.range(2 ** d, 2 ** (d + 1)) - 1
     tile_indices = tf.reshape(tf.tile(tf.expand_dims(indices, 1), [1, 2 ** (DEPTH - d + 1)]), [1, -1])
     batch_indices = tf.add(batch_0_indices, tf.tile(tile_indices, [N_BATCH, 1]))
