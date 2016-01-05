@@ -95,7 +95,9 @@ for d in xrange(1, DEPTH + 1):
 mu = mu_
 py_x = tf.reduce_mean(tf.mul(tf.tile(tf.expand_dims(mu, 2), [1, 1, N_LABEL]), tf.tile(tf.expand_dims(leaf_p, 0), [N_BATCH, 1, 1])), 1)  # average all the leaf p
 
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(py_x, Y))
+cost = tf.reduce_mean(-tf.mul(tf.log(py_x), Y))
+
+# cost = tf.reduce_mean(tf.nn.cross_entropy_with_logits(py_x, Y))
 train_step = tf.train.RMSPropOptimizer(0.001, 0.9).minimize(cost)
 predict = tf.argmax(py_x, 1)
 
