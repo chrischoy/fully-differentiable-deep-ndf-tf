@@ -1,12 +1,11 @@
 import tensorflow as tf
 import numpy as np
 import tensorflow.examples.tutorials.mnist.input_data as input_data
-from IPython import embed
 
 DEPTH = 3
 N_LEAF = 2 ** (DEPTH + 1)
 N_LABEL = 10
-
+N_TREE = 5
 
 def init_weights(shape):
     return tf.Variable(tf.random_normal(shape, stddev=0.01))
@@ -66,21 +65,26 @@ p_keep_hidden = tf.placeholder("float")
 # With the probability decision_p, route a sample to the right branch
 decision_p, leaf_p = model(X, w, w2, w3, w4, w_d, w_l, p_keep_conv, p_keep_hidden)
 
+# Compute 1 - d, 1 - \sigmoid (fully connected output)
 decision_p_comp = tf.sub(tf.ones_like(decision_p), decision_p)
 
+# Concatenate both d, 1-d
 decision_p_pack = tf.pack([decision_p, decision_p_comp])
 
-# first element is the root, next level is place right next to the previous
-# level.
-
+# Flatten/vectorize the decision, used for indexing.
 flat_decision_p = tf.reshape(decision_p_pack, [-1])
 
+# Since we are using batch, 0 index of each data instance is essential in
+# finding indices.
 batch_0_indices = tf.tile(tf.expand_dims(tf.range(0, N_BATCH * N_LEAF, N_LEAF), 1), [1, N_LEAF])
 in_repeat = N_LEAF / 2
 out_repeat = N_BATCH
 batch_complement_indices = np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat] * out_repeat).reshape(N_BATCH, N_LEAF)
+
+# First root node for each data instance.
 mu_ = tf.gather(flat_decision_p, tf.add(batch_0_indices, batch_complement_indices))
 
+# from the second layer to the last layer, we make the decision nodes
 for d in xrange(1, DEPTH + 1):
     indices = tf.range(2 ** d, 2 ** (d + 1)) - 1
     tile_indices = tf.reshape(tf.tile(tf.expand_dims(indices, 1), [1, 2 ** (DEPTH - d + 1)]), [1, -1])
@@ -92,9 +96,13 @@ for d in xrange(1, DEPTH + 1):
 
     mu_ = tf.mul(mu_, tf.gather(flat_decision_p, tf.add(batch_indices, batch_complement_indices)))
 
+# Final \mu
 mu = mu_
+
+# p(y|x)
 py_x = tf.reduce_mean(tf.mul(tf.tile(tf.expand_dims(mu, 2), [1, 1, N_LABEL]), tf.tile(tf.expand_dims(leaf_p, 0), [N_BATCH, 1, 1])), 1)  # average all the leaf p
 
+# cross entropy loss
 cost = tf.reduce_mean(-tf.mul(tf.log(py_x), Y))
 
 # cost = tf.reduce_mean(tf.nn.cross_entropy_with_logits(py_x, Y))
@@ -113,5 +121,3 @@ for i in range(100):
         results.extend(np.argmax(teY[start:end], axis=1) == sess.run(predict, feed_dict={X: teX[start:end], p_keep_conv: 1.0, p_keep_hidden: 1.0}))
 
     print i, np.mean(results)
-
-    # embed()
