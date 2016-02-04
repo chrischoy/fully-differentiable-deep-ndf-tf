@@ -2,8 +2,9 @@
 """
 # Fully differentiable deep neural decision forest
 
-This is an implementation of my idea fully differentiable deep-neural decision
-forest usng TensorFlow.
+This is an implementation of a simple modification to the deep-neural decision
+forest usng TensorFlow. The modification allows the joint optimization of
+decision and leaf nodes which speeds up the training (haven't compared yet).
 
 
 ## Motivation:
