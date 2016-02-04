@@ -1,8 +1,9 @@
 # Fully differentiable deep neural decision forest
 
 This is an implementation of a simple modification to the deep-neural decision
-forest usng TensorFlow. The modification allows the joint optimization of
-decision and leaf nodes which speeds up the training (haven't compared yet).
+forest [Kontschieder et al.] usng TensorFlow. The modification allows the joint
+optimization of decision nodes and leaf nodes which speeds up the training
+(haven't compared yet).
 
 
 ## Motivation:
@@ -24,15 +25,18 @@ parametric formulation of leaf node.
 
 ## Formulation
 
-The leaf node probability can be parametrized using a softmax(W_{leaf}).
-i.e. let a vector that has a length # of class be W_{leaf}.
+The leaf node probability can be parametrized using a $softmax(W_{leaf})$.
+i.e. let a vector $W_{leaf} \in \mathbb{R}^N$ where N is the number of classes.
 
-Then taking the soft max operation on W_{leaf} would be
+Then taking the soft max operation on W_{leaf} would give us
 
+$$
 softmax(W_{leaf}) = \frac{e^{-w_i}}{\sum_j e^{-w_j}}
+$$
 
-which is always in a simplex. Thus, the gradient of L w.r.t W_{leaf} is
-possible and one can jointly optimize both leaf nodes and decision nodes.
+which is always in a simplex. Thus, without any constraint, we can parametrize
+the leaf nodes and can compute the gradient of $L$ w.r.t $W_{leaf}$. This
+allows us to jointly optimize both leaf nodes and decision nodes.
 
 
 ## Experiment
