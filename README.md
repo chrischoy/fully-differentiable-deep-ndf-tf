@@ -1,5 +1,7 @@
 # Fully differentiable deep neural decision forest
 
+[![DOI](https://zenodo.org/badge/20267/chrischoy/fully-differentiable-deep-ndf-tf.svg)](https://zenodo.org/badge/latestdoi/20267/chrischoy/fully-differentiable-deep-ndf-tf)
+
 This is an implementation of a simple modification to the deep-neural decision
 forest [Kontschieder et al.] usng TensorFlow. The modification allows the joint
 optimization of decision nodes and leaf nodes which speeds up the training
