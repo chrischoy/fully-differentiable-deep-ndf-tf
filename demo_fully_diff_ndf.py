@@ -1,11 +1,79 @@
+#!/usr/bin/python
+"""
+# Fully differentiable deep neural decision forest
+
+This is an implementation of my idea fully differentiable deep-neural decision
+forest usng TensorFlow.
+
+
+## Motivation:
+
+Deep Neural Deicision Forest, ICCV 2015, proposed a great way to incorporate a
+neural network with a decision forest. During the optimization (training), the
+terminal (leaf) node has to be updated after each epoch.
+
+This alternative optimization scheme is usually slower than joint optimization
+since other variable that is not being optimized slows down the optimization.
+
+This code is just a proof-of-concept that
+
+1. one can train both decision nodes and leaf nodes $\pi$ jointly using
+parametric formulation of leaf node.
+
+2. one can implement the idea in a symbolic math library very easily.
+
+
+## Formulation
+
+The leaf node probability can be parametrized using a softmax(W_{leaf}).
+i.e. let a vector that has a length # of class be W_{leaf}.
+
+Then taking the soft max operation on W_{leaf} would be
+
+softmax(W_{leaf}) = \frac{e^{-w_i}}{\sum_j e^{-w_j}}
+
+which is always in a simplex. Thus, the gradient of L w.r.t W_{leaf} is
+possible and one can jointly optimize both leaf nodes and decision nodes.
+
+
+## References
+[Kontschieder et al.] Deep Neural Decision Forests, ICCV 2015
+
+
+## License
+
+The MIT License (MIT)
+
+Copyright (c) 2016 Christopher B. Choy (chrischoy@ai.stanford.edu)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
+
 import tensorflow as tf
 import numpy as np
 import tensorflow.examples.tutorials.mnist.input_data as input_data
 
-DEPTH = 3
-N_LEAF = 2 ** (DEPTH + 1)
-N_LABEL = 10
-N_TREE = 5
+DEPTH   = 3                 # Depth of a tree
+N_LEAF  = 2 ** (DEPTH + 1)  # Number of leaf node
+N_LABEL = 10                # Number of classes
+N_TREE  = 5                 # Number of trees (ensemble)
+N_BATCH = 128               # Number of data points per mini-batch
 
 
 def init_weights(shape):
@@ -18,7 +86,19 @@ def init_prob_weights(shape, minval=-5, maxval=5):
 
 def model(X, w, w2, w3, w4_e, w_d_e, w_l_e, p_keep_conv, p_keep_hidden):
     """
-    Create a forest
+    Create a forest and return the neural decision forest outputs:
+
+        decision_p_e: decision node routing probability for all ensemble
+            If we number all nodes in the tree sequentially from top to bottom,
+            left to right, decision_p contains
+            [d(0), d(1), d(2), ..., d(2^n - 2)] where d(1) is the probability
+            of going left at the root node, d(2) is that of the left child of
+            the root node.
+
+            decision_p_e is the concatenation of all tree decision_p's
+
+        leaf_p_e: terminal node probability distributions for all ensemble. The
+            indexing is the same as that of decision_p_e.
     """
     assert(len(w4_e) == len(w_d_e))
     assert(len(w4_e) == len(w_l_e))
@@ -54,16 +134,22 @@ def model(X, w, w2, w3, w4_e, w_d_e, w_l_e, p_keep_conv, p_keep_hidden):
 
     return decision_p_e, leaf_p_e
 
-
+##################################################
+# Load dataset
+##################################################
 mnist = input_data.read_data_sets("MNIST/", one_hot=True)
-trX, trY, teX, teY = mnist.train.images, mnist.train.labels, mnist.test.images, mnist.test.labels
+trX, trY = mnist.train.images, mnist.train.labels
+teX, teY = mnist.test.images, mnist.test.labels
 trX = trX.reshape(-1, 28, 28, 1)
 teX = teX.reshape(-1, 28, 28, 1)
 
-N_BATCH = 128
+# Input X, output Y
 X = tf.placeholder("float", [N_BATCH, 28, 28, 1])
 Y = tf.placeholder("float", [N_BATCH, N_LABEL])
 
+##################################################
+# Initialize network weights
+##################################################
 w = init_weights([3, 3, 1, 32])
 w2 = init_weights([3, 3, 32, 64])
 w3 = init_weights([3, 3, 64, 128])
@@ -71,7 +157,6 @@ w3 = init_weights([3, 3, 64, 128])
 w4_ensemble = []
 w_d_ensemble = []
 w_l_ensemble = []
-
 for i in range(N_TREE):
     w4_ensemble.append(init_weights([128 * 4 * 4, 625]))
     w_d_ensemble.append(init_prob_weights([625, N_LEAF], -1, 1))
@@ -80,54 +165,100 @@ for i in range(N_TREE):
 p_keep_conv = tf.placeholder("float")
 p_keep_hidden = tf.placeholder("float")
 
+##################################################
+# Define a fully differentiable deep-ndf
+##################################################
 # With the probability decision_p, route a sample to the right branch
-decision_p_e, leaf_p_e = model(X, w, w2, w3, w4_ensemble, w_d_ensemble, w_l_ensemble, p_keep_conv, p_keep_hidden)
+decision_p_e, leaf_p_e = model(X, w, w2, w3, w4_ensemble, w_d_ensemble,
+                               w_l_ensemble, p_keep_conv, p_keep_hidden)
 
 flat_decision_p_e = []
+
+# iterate over each tree
 for decision_p in decision_p_e:
-    # Compute 1 - d, 1 - \sigmoid (fully connected output)
+    # Compute the complement of d, which is 1 - d
+    # where d is the sigmoid of fully connected output
     decision_p_comp = tf.sub(tf.ones_like(decision_p), decision_p)
 
     # Concatenate both d, 1-d
     decision_p_pack = tf.pack([decision_p, decision_p_comp])
 
-    # Flatten/vectorize the decision, used for indexing.
+    # Flatten/vectorize the decision probabilities for efficient indexing
     flat_decision_p = tf.reshape(decision_p_pack, [-1])
-
     flat_decision_p_e.append(flat_decision_p)
 
-# Since we are using batch, 0 index of each data instance is essential in
-# finding indices.
-batch_0_indices = tf.tile(tf.expand_dims(tf.range(0, N_BATCH * N_LEAF, N_LEAF), 1), [1, N_LEAF])
+# 0 index of each data instance in a mini-batch
+batch_0_indices = \
+    tf.tile(tf.expand_dims(tf.range(0, N_BATCH * N_LEAF, N_LEAF), 1),
+            [1, N_LEAF])
+
+###############################################################################
+# The routing probability computation
+#
+# We will create a routing probability matrix \mu. First, we will initialize
+# \mu using the root node d, 1-d. To efficiently implement this routing, we
+# will create a giant vector (matrix) that contains all d and 1-d from all
+# decision nodes. The matrix version of that is decision_p_pack and vectorized
+# version is flat_decision_p.
+#
+# The suffix `_e` indicates an ensemble. i.e. concatenation of all responsens
+# from trees.
+#
+# For depth = 2 tree, the routing probability for each leaf node can be easily
+# compute by multiplying the following vectors elementwise.
+# \mu =       [d_0,   d_0,   d_0,   d_0, 1-d_0, 1-d_0, 1-d_0, 1-d_0]
+# \mu = \mu * [d_1,   d_1, 1-d_1, 1-d_1,   d_2,   d_2, 1-d_2, 1-d_2]
+# \mu = \mu * [d_3, 1-d_3,   d_4, 1-d_4,   d_5, 1-d_5,   d_6, 1-d_6]
+#
+# Tree indexing
+#      0
+#    1   2
+#   3 4 5 6
+##############################################################################
 in_repeat = N_LEAF / 2
 out_repeat = N_BATCH
-batch_complement_indices = np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat] * out_repeat).reshape(N_BATCH, N_LEAF)
 
-# Loop over trees
-# First root node for each data instance.
+# Let N_BATCH * N_LEAF be N_D. flat_decision_p[N_D] will return 1-d of the
+# first root node in the first tree.
+batch_complement_indices = \
+    np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat]
+             * out_repeat).reshape(N_BATCH, N_LEAF)
+
+# First define the routing probabilities d for root nodes
 mu_e = []
+
+# iterate over each tree
 for i, flat_decision_p in enumerate(flat_decision_p_e):
-    mu = tf.gather(flat_decision_p, tf.add(batch_0_indices, batch_complement_indices))
+    mu = tf.gather(flat_decision_p,
+                   tf.add(batch_0_indices, batch_complement_indices))
     mu_e.append(mu)
 
 # from the second layer to the last layer, we make the decision nodes
 for d in xrange(1, DEPTH + 1):
     indices = tf.range(2 ** d, 2 ** (d + 1)) - 1
-    tile_indices = tf.reshape(tf.tile(tf.expand_dims(indices, 1), [1, 2 ** (DEPTH - d + 1)]), [1, -1])
+    tile_indices = tf.reshape(tf.tile(tf.expand_dims(indices, 1),
+                                      [1, 2 ** (DEPTH - d + 1)]), [1, -1])
     batch_indices = tf.add(batch_0_indices, tf.tile(tile_indices, [N_BATCH, 1]))
 
     in_repeat = in_repeat / 2
     out_repeat = out_repeat * 2
-    batch_complement_indices = np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat] * out_repeat).reshape(N_BATCH, N_LEAF)
+
+    # Again define the indices that picks d and 1-d for the node
+    batch_complement_indices = \
+        np.array([[0] * in_repeat, [N_BATCH * N_LEAF] * in_repeat]
+                 * out_repeat).reshape(N_BATCH, N_LEAF)
 
     mu_e_update = []
     for mu, flat_decision_p in zip(mu_e, flat_decision_p_e):
-        mu = tf.mul(mu, tf.gather(flat_decision_p, tf.add(batch_indices, batch_complement_indices)))
+        mu = tf.mul(mu, tf.gather(flat_decision_p,
+                                  tf.add(batch_indices, batch_complement_indices)))
         mu_e_update.append(mu)
 
     mu_e = mu_e_update
 
-# p(y|x)
+##################################################
+# Define p(y|x)
+##################################################
 py_x_e = []
 for mu, leaf_p in zip(mu_e, leaf_p_e):
     # average all the leaf p
@@ -138,6 +269,10 @@ for mu, leaf_p in zip(mu_e, leaf_p_e):
 
 py_x_e = tf.pack(py_x_e)
 py_x = tf.reduce_mean(py_x_e, 0)
+
+##################################################
+# Define cost and optimization method
+##################################################
 
 # cross entropy loss
 cost = tf.reduce_mean(-tf.mul(tf.log(py_x), Y))
@@ -150,11 +285,16 @@ sess = tf.Session()
 sess.run(tf.initialize_all_variables())
 
 for i in range(100):
-    for start, end in zip(range(0, len(trX), 128), range(128, len(trX), 128)):
-        sess.run(train_step, feed_dict={X: trX[start:end], Y: trY[start:end], p_keep_conv: 0.8, p_keep_hidden: 0.5})
+    # One epoch
+    for start, end in zip(range(0, len(trX), N_BATCH), range(N_BATCH, len(trX), N_BATCH)):
+        sess.run(train_step, feed_dict={X: trX[start:end], Y: trY[start:end],
+                                        p_keep_conv: 0.8, p_keep_hidden: 0.5})
 
+    # Result on the test set
     results = []
     for start, end in zip(range(0, len(teX), 128), range(128, len(teX), 128)):
-        results.extend(np.argmax(teY[start:end], axis=1) == sess.run(predict, feed_dict={X: teX[start:end], p_keep_conv: 1.0, p_keep_hidden: 1.0}))
+        results.extend(np.argmax(teY[start:end], axis=1) ==
+            sess.run(predict, feed_dict={X: teX[start:end], p_keep_conv: 1.0,
+                                         p_keep_hidden: 1.0}))
 
     print i, np.mean(results)
