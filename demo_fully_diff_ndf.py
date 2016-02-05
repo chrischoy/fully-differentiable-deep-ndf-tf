@@ -43,8 +43,13 @@ allows us to jointly optimize both leaf nodes and decision nodes.
 
 ## Experiment
 
-Test accuracy after each epoch
+I tested a simple (3 convolution + 2 fc) network for the experiment.
 
+On the MNIST, the simple Deep-NDF got 99.5% accuracy on the test set after 100
+epochs of training. After just 10 epochs, it reaches 99.1% and after 100
+epochs, it reaches 99.5%
+
+The following is the number of epoch and training accuracy after each epoch.
 ```
 0 0.955829326923
 1 0.979166666667
@@ -147,6 +152,10 @@ Test accuracy after each epoch
 98 0.995292467949
 99 0.995392628205
 ```
+
+## Slides
+
+[SDL Reading Group Slides](https://docs.google.com/presentation/d/1Ze7BAiWbMPyF0ax36D-aK00VfaGMGvvgD_XuANQW1gU/edit?usp=sharing)
 
 ## References
 [Kontschieder et al.] Deep Neural Decision Forests, ICCV 2015
@@ -404,9 +413,9 @@ for i in range(100):
 
     # Result on the test set
     results = []
-    for start, end in zip(range(0, len(teX), 128), range(128, len(teX), 128)):
+    for start, end in zip(range(0, len(teX), N_BATCH), range(N_BARCH, len(teX), N_BATCH)):
         results.extend(np.argmax(teY[start:end], axis=1) ==
             sess.run(predict, feed_dict={X: teX[start:end], p_keep_conv: 1.0,
                                          p_keep_hidden: 1.0}))
 
-    print i, np.mean(results)
+    print 'Epoch: %d, Test Accuracy: %f' % (i + 1, np.mean(results))
