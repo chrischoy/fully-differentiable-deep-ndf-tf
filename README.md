@@ -1,4 +1,4 @@
-# Fully differentiable deep neural decision forest
+# Fully Differentiable Deep Neural Decision Forest
 
 [![DOI](https://zenodo.org/badge/20267/chrischoy/fully-differentiable-deep-ndf-tf.svg)](https://zenodo.org/badge/latestdoi/20267/chrischoy/fully-differentiable-deep-ndf-tf)
 
@@ -14,7 +14,7 @@ Deep Neural Deicision Forest, ICCV 2015, proposed a great way to incorporate a
 neural network with a decision forest. During the optimization (training), the
 terminal (leaf) node has to be updated after each epoch.
 
-This alternative optimization scheme is usually slower than joint optimization
+This alternating optimization scheme is usually slower than joint optimization
 since other variable that is not being optimized slows down the optimization.
 
 This code is just a proof-of-concept that

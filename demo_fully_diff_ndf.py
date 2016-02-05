@@ -1,6 +1,6 @@
 #!/usr/bin/python
 """
-# Fully differentiable deep neural decision forest
+# Fully Differentiable Deep Neural Decision Forest
 
 This is an implementation of a simple modification to the deep-neural decision
 forest [Kontschieder et al.] usng TensorFlow. The modification allows the joint
@@ -14,7 +14,7 @@ Deep Neural Deicision Forest, ICCV 2015, proposed a great way to incorporate a
 neural network with a decision forest. During the optimization (training), the
 terminal (leaf) node has to be updated after each epoch.
 
-This alternative optimization scheme is usually slower than joint optimization
+This alternating optimization scheme is usually slower than joint optimization
 since other variable that is not being optimized slows down the optimization.
 
 This code is just a proof-of-concept that
