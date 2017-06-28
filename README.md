@@ -10,17 +10,21 @@ optimization of decision nodes and leaf nodes which speeds up the training
 
 ## Motivation:
 
-Deep Neural Deicision Forest, ICCV 2015, proposed a great way to incorporate a
-neural network with a decision forest. During the optimization (training), the
-terminal (leaf) node has to be updated after each epoch.
+Deep Neural Deicision Forest, ICCV 2015, proposed an interesting way to incorporate decision forest into a neural network.
+
+The authors proposed using a static probability distribution as the terminal nodes and to regress the target distribution (the ground truth one-hot-vector) using the usual distance function (KL divergence and thus cross entropy as the entropy of the ground truth distribution is constant).
+
+Specifically, the decision nodes (non-terminal nodes) are represented as a sigmoid function indicating the routing probability and the terminal nodes as a vector (in a simplex. Thus, probability distribution). As there are two trainable parameters, the authors used used alternating optimization scheme for optimization the decision nodes and terminal nodes.
 
 This alternating optimization scheme is usually slower than joint optimization
-since other variable that is not being optimized slows down the optimization.
+since the variables that are not being optimized slow down the optimization of the other variable.
+
+However, if we parametrize the terminal nodes, we can convert this problem into a simpler joint optimization and thus can speed up the convergence.
 
 This code is just a proof-of-concept that
 
 1. one can train both decision nodes and leaf nodes $\pi$ jointly using
-parametric formulation of leaf node.
+parametric formulation of leaf (terminal) nodes.
 
 2. one can implement the idea in a symbolic math library very easily.
 
@@ -30,14 +34,14 @@ parametric formulation of leaf node.
 The leaf node probability can be parametrized using a $softmax(W_{leaf})$.
 i.e. let a vector $W_{leaf} \in \mathbb{R}^N$ where N is the number of classes.
 
-Then taking the soft max operation on W_{leaf} would give us
+Then taking the soft max operation on W_{leaf} would give us a vector whose $i$th element is
 
 $$
-softmax(W_{leaf}) = \frac{e^{-w_i}}{\sum_j e^{-w_j}}
+softmax(W_{leaf})_i = \frac{e^{-w_i}}{\sum_j e^{-w_j}}
 $$
 
 which is always in a simplex. Thus, without any constraint, we can parametrize
-the leaf nodes and can compute the gradient of $L$ w.r.t $W_{leaf}$. This
+the leaf nodes and can compute the gradient of $L$ w.r.t $W_{leaf}$ as well. This
 allows us to jointly optimize both leaf nodes and decision nodes.
 
 
